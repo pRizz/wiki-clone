@@ -358,4 +358,37 @@ describe("API integration", () => {
       ),
     ).toBe(true);
   });
+
+  it("rejects anonymous write operations while allowing reads", async () => {
+    const readResponse = await request(app).get("/api/articles");
+    expect(readResponse.status).toBe(200);
+
+    const writeResponse = await request(app).post("/api/articles").send({
+      slug: "anon-blocked",
+      title: "Anon Blocked",
+      content: "should fail",
+      summary: "n/a",
+    });
+    expect(writeResponse.status).toBe(401);
+  });
+
+  it("enforces admin-only access for admin audit logs", async () => {
+    const adminEmail = "admin@example.com";
+    await loginWithMagicLink(adminEmail);
+    await pool.query(`UPDATE users SET role = 'admin' WHERE email = $1`, [adminEmail]);
+    const adminAuth = await loginWithMagicLink(adminEmail);
+    const moderatorAuth = await loginWithMagicLink(uniqueEmail("mod-audit"));
+    await pool.query("UPDATE users SET role = 'mod' WHERE id = $1", [moderatorAuth.user.id]);
+    const moderatorSession = await loginWithMagicLink(moderatorAuth.user.email);
+
+    const adminLogsResponse = await request(app)
+      .get("/api/admin/logs")
+      .set("Authorization", `Bearer ${adminAuth.token}`);
+    expect(adminLogsResponse.status).toBe(200);
+
+    const moderatorLogsResponse = await request(app)
+      .get("/api/admin/logs")
+      .set("Authorization", `Bearer ${moderatorSession.token}`);
+    expect(moderatorLogsResponse.status).toBe(403);
+  });
 });

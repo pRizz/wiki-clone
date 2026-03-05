@@ -21,6 +21,10 @@
   - `/health`
   - `/api/articles`
   - `/api/karma/users/:id`
+- Security smoke script: `npm run security:smoke`
+  - anonymous write blocked
+  - moderator ban blocked
+  - admin-log access role enforcement
 
 ## Example e2e summary output
 

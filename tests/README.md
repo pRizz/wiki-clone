@@ -11,6 +11,7 @@
 
 - End-to-end smoke script: `npm run e2e:smoke`
 - Performance smoke script: `npm run perf:smoke`
+- Security smoke script: `npm run security:smoke`
 
 ## Full validation command sequence
 
