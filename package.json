@@ -12,6 +12,7 @@
     "dev:api": "npm run --workspace @wiki/api dev",
     "e2e:smoke": "npm run --workspace @wiki/api seed:admin && python3 scripts/e2e_smoke.py",
     "lint": "npm run -ws lint",
+    "perf:edit-smoke": "npm run --workspace @wiki/api seed:admin && python3 scripts/edit_latency_smoke.py",
     "perf:smoke": "bash scripts/perf_smoke.sh",
     "security:smoke": "npm run --workspace @wiki/api seed:admin && python3 scripts/security_smoke.py",
     "test": "npm run -ws test",

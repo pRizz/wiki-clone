@@ -92,5 +92,6 @@ Runtime smoke scripts:
 ```bash
 npm run e2e:smoke
 npm run perf:smoke
+npm run perf:edit-smoke
 npm run security:smoke
 ```
