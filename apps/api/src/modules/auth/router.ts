@@ -23,6 +23,7 @@ const authLimiter = rateLimit({
   limit: 30,
   standardHeaders: true,
   legacyHeaders: false,
+  skip: () => process.env.NODE_ENV === "test",
 });
 
 const makeSessionUser = (row: {

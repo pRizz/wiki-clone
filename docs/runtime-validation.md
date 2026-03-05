@@ -3,7 +3,7 @@
 ## Automated checks
 
 - `npm run typecheck` passes
-- `npm run test` passes
+- `npm run test` passes (API integration tests included)
 - `npm run build` passes
 
 ## Repeatable smoke scripts

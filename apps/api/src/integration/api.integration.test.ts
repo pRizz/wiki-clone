@@ -263,4 +263,47 @@ describe("API integration", () => {
       ),
     ).toBe(true);
   });
+
+  it("enforces one-time magic link use", async () => {
+    const email = uniqueEmail("magic-once");
+    const magicToken = await requestMagicLinkToken(email);
+
+    const firstVerifyResponse = await request(app)
+      .post("/api/auth/magic-link/verify")
+      .send({ token: magicToken });
+    expect(firstVerifyResponse.status).toBe(200);
+
+    const secondVerifyResponse = await request(app)
+      .post("/api/auth/magic-link/verify")
+      .send({ token: magicToken });
+    expect(secondVerifyResponse.status).toBe(400);
+    expect(secondVerifyResponse.body.error).toBe("Magic link already used");
+  });
+
+  it("blocks non-admin moderators from ban action", async () => {
+    const adminEmail = "admin@example.com";
+    await loginWithMagicLink(adminEmail);
+    await pool.query(`UPDATE users SET role = 'admin' WHERE email = $1`, [adminEmail]);
+    const adminAuth = await loginWithMagicLink(adminEmail);
+
+    const moderatorAuth = await loginWithMagicLink(uniqueEmail("mod"));
+    await pool.query("UPDATE users SET role = 'mod' WHERE id = $1", [moderatorAuth.user.id]);
+    const moderatorSession = await loginWithMagicLink(moderatorAuth.user.email);
+
+    const targetAuth = await loginWithMagicLink(uniqueEmail("ban-target"));
+    expect(adminAuth.user.role).toBe("admin");
+
+    const banResponse = await request(app)
+      .post("/api/moderation/actions")
+      .set("Authorization", `Bearer ${moderatorSession.token}`)
+      .send({
+        targetUserId: targetAuth.user.id,
+        actionType: "ban",
+        reasonType: "policy_violation",
+        note: "should be blocked",
+      });
+
+    expect(banResponse.status).toBe(403);
+    expect(banResponse.body.error).toBe("Only admins can ban users");
+  });
 });
