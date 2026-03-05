@@ -89,6 +89,17 @@ function App() {
       note: string;
     }>
   >([]);
+  const [moderationQueueItems, setModerationQueueItems] = createSignal<
+    Array<{
+      itemType: "revision" | "comment";
+      itemId: number;
+      authorId: number;
+      articleSlug: string;
+      preview: string;
+      score: number;
+      createdAt: string;
+    }>
+  >([]);
   const [abuseSignals, setAbuseSignals] = createSignal<
     Array<{
       id: number;
@@ -254,6 +265,7 @@ function App() {
   const refreshModerationActions = async (): Promise<void> => {
     if (!hasModerationAccess()) {
       setModerationActions([]);
+      setModerationQueueItems([]);
       setAbuseSignals([]);
       return;
     }
@@ -271,6 +283,23 @@ function App() {
           }>;
         }>("/moderation/actions"),
       (data) => setModerationActions(data.actions),
+    );
+
+    await callApi(
+      "Load moderation queue",
+      () =>
+        apiClient().request<{
+          items: Array<{
+            itemType: "revision" | "comment";
+            itemId: number;
+            authorId: number;
+            articleSlug: string;
+            preview: string;
+            score: number;
+            createdAt: string;
+          }>;
+        }>("/moderation/queue"),
+      (data) => setModerationQueueItems(data.items),
     );
 
     await callApi(
@@ -865,6 +894,17 @@ function App() {
                 <li>
                   #{action.id} {action.actionType} target={action.targetUserId} by=
                   {action.actorUserId} — {action.note}
+                </li>
+              )}
+            </For>
+          </ul>
+          <h3>Moderation queue (recent revisions/comments)</h3>
+          <ul>
+            <For each={moderationQueueItems()}>
+              {(item) => (
+                <li>
+                  {item.itemType} #{item.itemId} article={item.articleSlug} author=
+                  {item.authorId} score={item.score} — {item.preview} ({item.createdAt})
                 </li>
               )}
             </For>

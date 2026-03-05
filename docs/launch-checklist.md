@@ -25,6 +25,7 @@
 - [x] Suspicious behavior flag listing for moderators/admins
 - [x] Moderation actions with admin-only ban
 - [x] Admin audit logs for privileged actions
+- [x] Moderation queue endpoint and UI for recent revisions/comments
 
 ## Hardening
 

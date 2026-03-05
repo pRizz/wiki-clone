@@ -4,7 +4,7 @@
 
 - API unit tests: `apps/api/src/**/*.test.ts`
 - API integration tests: `apps/api/src/integration/api.integration.test.ts`
-  - Includes moderation, passkey, admin-audit, abuse-signal, and magic-link one-time-use assertions
+  - Includes moderation queue/actions, passkey, admin-audit, abuse-signal, and magic-link one-time-use assertions
 - Shared package tests: `packages/shared/src/**/*.test.ts` (add as needed)
 
 ## Runtime Smoke

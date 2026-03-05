@@ -16,6 +16,7 @@
   - Moderation action
   - Search and karma ledger verification
   - Optional follow-up admin checks: `/api/admin/logs` and `/api/karma/signals`
+  - Optional moderation queue check: `/api/moderation/queue`
 - Performance smoke script: `npm run perf:smoke`
   - `/health`
   - `/api/articles`

@@ -306,4 +306,56 @@ describe("API integration", () => {
     expect(banResponse.status).toBe(403);
     expect(banResponse.body.error).toBe("Only admins can ban users");
   });
+
+  it("returns moderation queue items for revisions and comments", async () => {
+    const adminEmail = "admin@example.com";
+    await loginWithMagicLink(adminEmail);
+    await pool.query(`UPDATE users SET role = 'admin' WHERE email = $1`, [adminEmail]);
+    const adminAuth = await loginWithMagicLink(adminEmail);
+    const editorAuth = await loginWithMagicLink(uniqueEmail("queue-editor"));
+
+    const createArticleResponse = await request(app)
+      .post("/api/articles")
+      .set("Authorization", `Bearer ${editorAuth.token}`)
+      .send({
+        slug: "queue-article",
+        title: "Queue Article",
+        content: "queue body",
+        summary: "init",
+      });
+    expect(createArticleResponse.status).toBe(201);
+
+    const threadResponse = await request(app)
+      .post("/api/articles/queue-article/discussions")
+      .set("Authorization", `Bearer ${editorAuth.token}`)
+      .send({
+        title: "queue thread",
+      });
+    expect(threadResponse.status).toBe(201);
+
+    const commentResponse = await request(app)
+      .post(`/api/discussions/${threadResponse.body.thread.id}/comments`)
+      .set("Authorization", `Bearer ${editorAuth.token}`)
+      .send({
+        content: "queue comment content",
+      });
+    expect(commentResponse.status).toBe(201);
+
+    const queueResponse = await request(app)
+      .get("/api/moderation/queue")
+      .set("Authorization", `Bearer ${adminAuth.token}`);
+    expect(queueResponse.status).toBe(200);
+    expect(
+      queueResponse.body.items.some(
+        (item: { itemType: string; articleSlug: string }) =>
+          item.itemType === "revision" && item.articleSlug === "queue-article",
+      ),
+    ).toBe(true);
+    expect(
+      queueResponse.body.items.some(
+        (item: { itemType: string; articleSlug: string }) =>
+          item.itemType === "comment" && item.articleSlug === "queue-article",
+      ),
+    ).toBe(true);
+  });
 });

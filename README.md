@@ -9,6 +9,7 @@ Wikipedia-style collaborative site with:
 - Configurable karma engine with visible ledger
 - Suspicious behavior flags for duplicate-suppressed and cap-suppressed karma activity
 - Moderation actions (warn/suspend/ban/revert), with admin-only bans
+- Moderation queue feed for recent revisions/comments with vote score
 - Admin audit log for privileged moderation/config/user-management actions
 - Email magic link auth + passkey CRUD and passkey login
 

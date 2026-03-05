@@ -10,6 +10,94 @@ import type { AuthedRequest } from "../../types.js";
 const moderationRouter = Router();
 
 moderationRouter.get(
+  "/queue",
+  requireAuth,
+  requireRole(["mod", "admin"]),
+  async (req, res) => {
+    const maybeLimit = req.query.limit;
+    const limit = maybeLimit === undefined ? 100 : Number(maybeLimit);
+    if (Number.isNaN(limit)) {
+      res.status(400).json({ error: "Invalid limit query param" });
+      return;
+    }
+
+    const safeLimit = Math.max(1, Math.min(limit, 300));
+    const result = await pool.query<{
+      item_type: "revision" | "comment";
+      item_id: number;
+      author_id: number;
+      article_slug: string;
+      preview: string;
+      score: number;
+      created_at: string;
+    }>(
+      `SELECT
+          queued.item_type,
+          queued.item_id,
+          queued.author_id,
+          queued.article_slug,
+          queued.preview,
+          queued.score,
+          queued.created_at
+       FROM (
+         SELECT
+           'revision'::text AS item_type,
+           r.id AS item_id,
+           r.editor_id AS author_id,
+           a.slug AS article_slug,
+           LEFT(r.content, 240) AS preview,
+           COALESCE(v.score, 0)::int AS score,
+           r.created_at
+          FROM article_revisions r
+          JOIN articles a ON a.id = r.article_id
+          LEFT JOIN (
+            SELECT target_id, SUM(value)::int AS score
+              FROM votes
+             WHERE target_type = 'revision'
+             GROUP BY target_id
+          ) v ON v.target_id = r.id
+          WHERE r.is_revert = FALSE
+
+         UNION ALL
+
+         SELECT
+           'comment'::text AS item_type,
+           c.id AS item_id,
+           c.author_id AS author_id,
+           a.slug AS article_slug,
+           LEFT(c.content, 240) AS preview,
+           COALESCE(v.score, 0)::int AS score,
+           c.created_at
+          FROM discussion_comments c
+          JOIN discussion_threads dt ON dt.id = c.thread_id
+          JOIN articles a ON a.id = dt.article_id
+          LEFT JOIN (
+            SELECT target_id, SUM(value)::int AS score
+              FROM votes
+             WHERE target_type = 'comment'
+             GROUP BY target_id
+          ) v ON v.target_id = c.id
+       ) queued
+       ORDER BY queued.created_at DESC
+       LIMIT $1`,
+      [safeLimit],
+    );
+
+    res.json({
+      items: result.rows.map((row) => ({
+        itemType: row.item_type,
+        itemId: row.item_id,
+        authorId: row.author_id,
+        articleSlug: row.article_slug,
+        preview: row.preview,
+        score: row.score,
+        createdAt: row.created_at,
+      })),
+    });
+  },
+);
+
+moderationRouter.get(
   "/actions",
   requireAuth,
   requireRole(["mod", "admin"]),
@@ -237,7 +325,8 @@ moderationRouter.post(
         ],
       );
 
-      await createAdminAuditLog({
+      await createAdminAuditLog(
+        {
           actorUserId: actorUser.id,
           actionType: `moderation_${input.actionType}`,
           targetEntity: "user",
