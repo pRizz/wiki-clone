@@ -33,6 +33,10 @@ function App() {
   >([]);
 
   const [articles, setArticles] = createSignal<Array<{ slug: string; title: string }>>([]);
+  const [searchQuery, setSearchQuery] = createSignal("");
+  const [searchResults, setSearchResults] = createSignal<
+    Array<{ slug: string; title: string; excerpt: string }>
+  >([]);
   const [selectedSlug, setSelectedSlug] = createSignal("");
   const [articleTitle, setArticleTitle] = createSignal("");
   const [articleContent, setArticleContent] = createSignal("");
@@ -51,7 +55,12 @@ function App() {
   const [comments, setComments] = createSignal<Array<{ id: number; content: string }>>([]);
 
   const [karmaUserId, setKarmaUserId] = createSignal("");
-  const [karmaTotal, setKarmaTotal] = createSignal<number | null>(null);
+  const [karmaTotals, setKarmaTotals] = createSignal<{
+    positive: number;
+    negative: number;
+    decayedPositive: number;
+    total: number;
+  } | null>(null);
   const [karmaLedger, setKarmaLedger] = createSignal<
     Array<{ id: number; eventType: string; points: number; reason: string }>
   >([]);
@@ -133,6 +142,23 @@ function App() {
       "Load articles",
       () => apiClient().request<{ articles: Array<{ slug: string; title: string }> }>("/articles"),
       (data) => setArticles(data.articles),
+    );
+  };
+
+  const runSearch = async (): Promise<void> => {
+    const query = searchQuery().trim();
+    if (!query) {
+      setSearchResults([]);
+      return;
+    }
+
+    await callApi(
+      "Search articles",
+      () =>
+        apiClient().request<{
+          results: Array<{ slug: string; title: string; excerpt: string }>;
+        }>(`/search?query=${encodeURIComponent(query)}`),
+      (data) => setSearchResults(data.results),
     );
   };
 
@@ -347,6 +373,28 @@ function App() {
         <h2>Articles · Revisions · Revert</h2>
         <div class="row">
           <input
+            aria-label="Search articles"
+            value={searchQuery()}
+            onInput={(event) => setSearchQuery(event.currentTarget.value)}
+            placeholder="Search title, slug, or content"
+          />
+          <button onClick={() => void runSearch()}>Search</button>
+        </div>
+        <Show when={searchResults().length > 0}>
+          <ul>
+            <For each={searchResults()}>
+              {(result) => (
+                <li>
+                  <button onClick={() => setSelectedSlug(result.slug)}>{result.slug}</button> ·{" "}
+                  {result.title}
+                  <div>{result.excerpt}</div>
+                </li>
+              )}
+            </For>
+          </ul>
+        </Show>
+        <div class="row">
+          <input
             aria-label="Article slug"
             value={selectedSlug()}
             onInput={(event) => setSelectedSlug(event.currentTarget.value)}
@@ -513,10 +561,44 @@ function App() {
             onInput={(event) => setKarmaUserId(event.currentTarget.value)}
             placeholder="User ID"
           />
-          <button onClick={() => void callApi("Load karma", () => apiClient().request<{ totals: { total: number }; ledger: Array<{ id: number; eventType: string; points: number; reason: string }> }>(`/karma/users/${karmaUserId()}`), (data) => { setKarmaTotal(data.totals.total); setKarmaLedger(data.ledger); })}>Load ledger</button>
+          <button
+            onClick={() =>
+              void callApi(
+                "Load karma",
+                () =>
+                  apiClient().request<{
+                    totals: {
+                      positive: number;
+                      negative: number;
+                      decayedPositive: number;
+                      total: number;
+                    };
+                    ledger: Array<{
+                      id: number;
+                      eventType: string;
+                      points: number;
+                      reason: string;
+                    }>;
+                  }>(`/karma/users/${karmaUserId()}`),
+                (data) => {
+                  setKarmaTotals(data.totals);
+                  setKarmaLedger(data.ledger);
+                },
+              )
+            }
+          >
+            Load ledger
+          </button>
         </div>
-        <Show when={karmaTotal() !== null}>
-          <p>Total karma: {karmaTotal()}</p>
+        <Show when={karmaTotals()}>
+          {(totals) => (
+            <div class="stack">
+              <p>Total karma: {totals().total}</p>
+              <p>Positive raw: {totals().positive}</p>
+              <p>Negative raw: {totals().negative}</p>
+              <p>Decayed positive: {totals().decayedPositive}</p>
+            </div>
+          )}
         </Show>
         <ul>
           <For each={karmaLedger()}>

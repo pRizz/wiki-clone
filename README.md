@@ -72,6 +72,10 @@ Defaults are defined in `packages/shared/src/index.ts` and stored in `karma_conf
 - API security headers are enabled via `helmet`.
 - Auth endpoints are protected by request rate limiting to mitigate abuse.
 
+## Launch Readiness
+
+- Launch checklist: `docs/launch-checklist.md`
+
 ## Testing
 
 ```bash
