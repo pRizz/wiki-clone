@@ -134,3 +134,16 @@ CREATE INDEX IF NOT EXISTS abuse_signals_user_created_at_idx
 
 CREATE INDEX IF NOT EXISTS abuse_signals_signal_fingerprint_idx
   ON abuse_signals (signal_fingerprint, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS admin_audit_logs (
+  id BIGSERIAL PRIMARY KEY,
+  actor_user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  action_type TEXT NOT NULL,
+  target_entity TEXT NOT NULL,
+  target_id TEXT,
+  details JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS admin_audit_logs_created_at_idx
+  ON admin_audit_logs (created_at DESC);

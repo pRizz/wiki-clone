@@ -221,4 +221,46 @@ describe("API integration", () => {
       ),
     ).toBe(true);
   });
+
+  it("records admin audit logs for privileged actions", async () => {
+    const adminEmail = "admin@example.com";
+    await loginWithMagicLink(adminEmail);
+    await pool.query(`UPDATE users SET role = 'admin' WHERE email = $1`, [adminEmail]);
+    const adminAuth = await loginWithMagicLink(adminEmail);
+    const targetAuth = await loginWithMagicLink(uniqueEmail("audit-target"));
+
+    const updateUserResponse = await request(app)
+      .patch(`/api/users/${targetAuth.user.id}`)
+      .set("Authorization", `Bearer ${adminAuth.token}`)
+      .send({
+        role: "mod",
+      });
+    expect(updateUserResponse.status).toBe(200);
+
+    const configResponse = await request(app)
+      .get("/api/karma/config")
+      .set("Authorization", `Bearer ${adminAuth.token}`);
+    expect(configResponse.status).toBe(200);
+
+    const updateConfigResponse = await request(app)
+      .put("/api/karma/config")
+      .set("Authorization", `Bearer ${adminAuth.token}`)
+      .send(configResponse.body.config);
+    expect(updateConfigResponse.status).toBe(204);
+
+    const logsResponse = await request(app)
+      .get("/api/admin/logs")
+      .set("Authorization", `Bearer ${adminAuth.token}`);
+    expect(logsResponse.status).toBe(200);
+    expect(
+      logsResponse.body.logs.some(
+        (log: { actionType: string }) => log.actionType === "user_updated",
+      ),
+    ).toBe(true);
+    expect(
+      logsResponse.body.logs.some(
+        (log: { actionType: string }) => log.actionType === "karma_config_updated",
+      ),
+    ).toBe(true);
+  });
 });

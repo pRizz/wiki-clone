@@ -2,6 +2,8 @@ import { Router } from "express";
 import { karmaConfigSchema } from "@wiki/shared";
 import { requireAuth, requireRole } from "../../middleware/auth.js";
 import { validateBody } from "../../middleware/validate.js";
+import { createAdminAuditLog } from "../admin-audit/service.js";
+import type { AuthedRequest } from "../../types.js";
 import {
   calculateKarmaTotals,
   getKarmaConfig,
@@ -22,9 +24,19 @@ karmaRouter.put(
   requireAuth,
   requireRole(["admin"]),
   validateBody(karmaConfigSchema),
-  async (req, res) => {
+  async (req: AuthedRequest, res) => {
     const config = karmaConfigSchema.parse(req.body);
     await updateKarmaConfig(config);
+    await createAdminAuditLog({
+      actorUserId: req.user!.id,
+      actionType: "karma_config_updated",
+      targetEntity: "karma_config",
+      targetId: "1",
+      details: {
+        decay: config.decay,
+        antiAbuse: config.antiAbuse,
+      },
+    });
     res.status(204).send();
   },
 );

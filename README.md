@@ -9,6 +9,7 @@ Wikipedia-style collaborative site with:
 - Configurable karma engine with visible ledger
 - Suspicious behavior flags for duplicate-suppressed and cap-suppressed karma activity
 - Moderation actions (warn/suspend/ban/revert), with admin-only bans
+- Admin audit log for privileged moderation/config/user-management actions
 - Email magic link auth + passkey CRUD and passkey login
 
 ## Monorepo Layout
@@ -72,6 +73,7 @@ Defaults are defined in `packages/shared/src/index.ts` and stored in `karma_conf
 - Role-based authorization gates privileged endpoints.
 - API security headers are enabled via `helmet`.
 - Auth endpoints are protected by request rate limiting to mitigate abuse.
+- Privileged actions are captured in `/api/admin/logs` audit trail.
 
 ## Launch Readiness
 

@@ -3,6 +3,8 @@ import { updateUserSchema } from "@wiki/shared";
 import { pool } from "../../db/pool.js";
 import { requireAuth, requireRole } from "../../middleware/auth.js";
 import { validateBody } from "../../middleware/validate.js";
+import { createAdminAuditLog } from "../admin-audit/service.js";
+import type { AuthedRequest } from "../../types.js";
 
 const usersRouter = Router();
 
@@ -37,7 +39,7 @@ usersRouter.patch(
   requireAuth,
   requireRole(["admin"]),
   validateBody(updateUserSchema),
-  async (req, res) => {
+  async (req: AuthedRequest, res) => {
     const userId = Number(req.params.userId);
     if (Number.isNaN(userId)) {
       res.status(400).json({ error: "Invalid user id" });
@@ -71,6 +73,17 @@ usersRouter.patch(
       res.status(404).json({ error: "User not found" });
       return;
     }
+
+    await createAdminAuditLog({
+      actorUserId: req.user!.id,
+      actionType: "user_updated",
+      targetEntity: "user",
+      targetId: String(maybeUser.id),
+      details: {
+        role: maybeUser.role,
+        status: maybeUser.status,
+      },
+    });
 
     res.json({
       user: {

@@ -4,6 +4,7 @@ import helmet from "helmet";
 import { config } from "./config.js";
 import { attachAuthUser } from "./middleware/auth.js";
 import { requestLogger } from "./middleware/request-logger.js";
+import { adminAuditRouter } from "./modules/admin-audit/router.js";
 import { articlesRouter } from "./modules/articles/router.js";
 import { authRouter } from "./modules/auth/router.js";
 import { discussionsRouter } from "./modules/discussions/router.js";
@@ -41,6 +42,7 @@ export const createApp = () => {
   app.use("/api/moderation", moderationRouter);
   app.use("/api/search", searchRouter);
   app.use("/api/users", usersRouter);
+  app.use("/api/admin", adminAuditRouter);
 
   app.use(
     (

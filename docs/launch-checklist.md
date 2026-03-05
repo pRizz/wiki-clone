@@ -24,6 +24,7 @@
 - [x] Karma ledger with configurable decay/weights
 - [x] Suspicious behavior flag listing for moderators/admins
 - [x] Moderation actions with admin-only ban
+- [x] Admin audit logs for privileged actions
 
 ## Hardening
 

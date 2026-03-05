@@ -3,6 +3,7 @@ import { moderationActionSchema } from "@wiki/shared";
 import { pool } from "../../db/pool.js";
 import { requireAuth, requireRole } from "../../middleware/auth.js";
 import { validateBody } from "../../middleware/validate.js";
+import { createAdminAuditLog } from "../admin-audit/service.js";
 import { createKarmaEvent } from "../karma/service.js";
 import type { AuthedRequest } from "../../types.js";
 
@@ -234,6 +235,20 @@ moderationRouter.post(
           input.note,
           targetRevisionId,
         ],
+      );
+
+      await createAdminAuditLog({
+          actorUserId: actorUser.id,
+          actionType: `moderation_${input.actionType}`,
+          targetEntity: "user",
+          targetId: String(input.targetUserId),
+          details: {
+            reasonType: input.reasonType,
+            note: input.note,
+            targetRevisionId,
+          },
+        },
+        client,
       );
 
       await client.query("COMMIT");

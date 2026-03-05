@@ -114,6 +114,15 @@ function App() {
       2,
     ),
   );
+  const [adminAuditLogs, setAdminAuditLogs] = createSignal<
+    Array<{
+      id: number;
+      actionType: string;
+      targetEntity: string;
+      targetId: string | null;
+      createdAt: string;
+    }>
+  >([]);
 
   const apiClient = createMemo(() => new ApiClient(token()));
   const hasModerationAccess = createMemo(() => {
@@ -323,6 +332,28 @@ function App() {
     );
   };
 
+  const refreshAdminAuditLogs = async (): Promise<void> => {
+    if (!hasAdminAccess()) {
+      setAdminAuditLogs([]);
+      return;
+    }
+
+    await callApi(
+      "Load admin audit logs",
+      () =>
+        apiClient().request<{
+          logs: Array<{
+            id: number;
+            actionType: string;
+            targetEntity: string;
+            targetId: string | null;
+            createdAt: string;
+          }>;
+        }>("/admin/logs"),
+      (data) => setAdminAuditLogs(data.logs),
+    );
+  };
+
   const updateUser = async (userId: number): Promise<void> => {
     await callApi(
       "Update user",
@@ -385,11 +416,13 @@ function App() {
   createEffect(() => {
     if (!hasAdminAccess()) {
       setManagedUsers([]);
+      setAdminAuditLogs([]);
       return;
     }
 
     void refreshManagedUsers();
     void refreshKarmaConfig();
+    void refreshAdminAuditLogs();
   });
 
   return (
@@ -911,6 +944,21 @@ function App() {
             value={karmaConfigEditor()}
             onInput={(event) => setKarmaConfigEditor(event.currentTarget.value)}
           />
+        </section>
+
+        <section class="panel">
+          <h2>Admin · Audit log</h2>
+          <button onClick={() => void refreshAdminAuditLogs()}>Refresh logs</button>
+          <ul>
+            <For each={adminAuditLogs()}>
+              {(log) => (
+                <li>
+                  #{log.id} {log.actionType} {log.targetEntity}
+                  {log.targetId ? `(${log.targetId})` : ""} at {log.createdAt}
+                </li>
+              )}
+            </For>
+          </ul>
         </section>
       </Show>
     </main>
