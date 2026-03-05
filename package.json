@@ -1,0 +1,21 @@
+{
+  "name": "wiki-clone",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run -ws build",
+    "dev:web": "npm run --workspace @wiki/web dev",
+    "dev:api": "npm run --workspace @wiki/api dev",
+    "lint": "npm run -ws lint",
+    "test": "npm run -ws test",
+    "typecheck": "npm run -ws typecheck"
+  },
+  "engines": {
+    "node": ">=20.11.0"
+  },
+  "license": "MIT"
+}

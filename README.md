@@ -1,0 +1,67 @@
+# Wiki Clone (SolidJS + Express + PostgreSQL)
+
+Wikipedia-style collaborative site with:
+
+- Public read access, authenticated edits
+- Article CRUD with immutable revision history + revert
+- Discussion threads and comments
+- Revision/comment voting
+- Configurable karma engine with visible ledger
+- Moderation actions (warn/suspend/ban/revert), with admin-only bans
+- Email magic link auth + passkey CRUD and passkey login
+
+## Monorepo Layout
+
+- `apps/web`: SolidJS frontend
+- `apps/api`: Express API + PostgreSQL persistence
+- `packages/shared`: shared validation schemas and domain constants
+- `infra`: Docker Compose, Render, and Fly deployment configs
+
+## Local Development
+
+### Option A: Docker Compose
+
+```bash
+docker compose -f infra/docker-compose.yml up --build
+```
+
+- Web: `http://localhost:4173`
+- API: `http://localhost:4000`
+
+### Option B: Run services directly
+
+```bash
+cp .env.example .env
+npm install
+docker run --name wiki-postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_USER=postgres -e POSTGRES_DB=wiki_clone -p 5432:5432 -d postgres:16-alpine
+npm run --workspace @wiki/api dev
+npm run --workspace @wiki/web dev
+```
+
+Seed an admin user:
+
+```bash
+ADMIN_EMAIL=admin@example.com npm run --workspace @wiki/api seed:admin
+```
+
+## Authentication Notes
+
+- No password authentication is implemented.
+- Magic links are requested via `/api/auth/magic-link/request`.
+- In non-production, the raw token is returned in the API response to streamline local testing.
+- Passkeys support CRUD metadata + passkey login endpoint.
+
+## Karma Defaults (Configurable)
+
+Defaults are defined in `packages/shared/src/index.ts` and stored in `karma_config` on first boot.
+
+- Positive: article create/edit, upvotes, comments, valid reverts
+- Negative: downvotes, reverted edits, policy warning/suspension/ban
+- Decay: enabled, 14-day grace, 1% weekly
+
+## Testing
+
+```bash
+npm run typecheck
+npm run test
+```
