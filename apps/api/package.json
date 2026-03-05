@@ -13,6 +13,7 @@
     "typecheck": "tsc -p tsconfig.json --pretty false"
   },
   "dependencies": {
+    "@sentry/node": "^10.42.0",
     "@wiki/shared": "file:../../packages/shared",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",

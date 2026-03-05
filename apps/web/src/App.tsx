@@ -9,6 +9,11 @@ type BasicUser = {
   status: string;
 };
 
+type DiffLine = {
+  type: "added" | "removed" | "unchanged";
+  text: string;
+};
+
 const tokenStorageKey = "wiki.token";
 
 function App() {
@@ -35,6 +40,9 @@ function App() {
   const [history, setHistory] = createSignal<
     Array<{ id: number; editorId: number; summary: string | null }>
   >([]);
+  const [diffFromRevisionId, setDiffFromRevisionId] = createSignal("");
+  const [diffToRevisionId, setDiffToRevisionId] = createSignal("");
+  const [diffLines, setDiffLines] = createSignal<DiffLine[]>([]);
 
   const [threadTitle, setThreadTitle] = createSignal("General thread");
   const [threads, setThreads] = createSignal<Array<{ id: number; title: string }>>([]);
@@ -47,8 +55,29 @@ function App() {
   const [karmaLedger, setKarmaLedger] = createSignal<
     Array<{ id: number; eventType: string; points: number; reason: string }>
   >([]);
+  const [moderationTargetUserId, setModerationTargetUserId] = createSignal("");
+  const [moderationActionType, setModerationActionType] = createSignal<
+    "warn" | "suspend" | "ban" | "revert"
+  >("warn");
+  const [moderationNote, setModerationNote] = createSignal("Policy violation note");
+  const [moderationSuspendHours, setModerationSuspendHours] = createSignal("24");
+  const [moderationArticleSlug, setModerationArticleSlug] = createSignal("");
+  const [moderationRevisionId, setModerationRevisionId] = createSignal("");
+  const [moderationActions, setModerationActions] = createSignal<
+    Array<{
+      id: number;
+      actionType: string;
+      targetUserId: number;
+      actorUserId: number;
+      note: string;
+    }>
+  >([]);
 
   const apiClient = createMemo(() => new ApiClient(token()));
+  const hasModerationAccess = createMemo(() => {
+    const maybeUser = viewer();
+    return maybeUser?.role === "mod" || maybeUser?.role === "admin";
+  });
 
   const storeToken = (nextToken: string | null): void => {
     setToken(nextToken);
@@ -153,6 +182,28 @@ function App() {
     );
   };
 
+  const refreshModerationActions = async (): Promise<void> => {
+    if (!hasModerationAccess()) {
+      setModerationActions([]);
+      return;
+    }
+
+    await callApi(
+      "Load moderation actions",
+      () =>
+        apiClient().request<{
+          actions: Array<{
+            id: number;
+            actionType: string;
+            targetUserId: number;
+            actorUserId: number;
+            note: string;
+          }>;
+        }>("/moderation/actions"),
+      (data) => setModerationActions(data.actions),
+    );
+  };
+
   createEffect(() => {
     void refreshViewer();
   });
@@ -171,6 +222,10 @@ function App() {
 
   createEffect(() => {
     void refreshComments();
+  });
+
+  createEffect(() => {
+    void refreshModerationActions();
   });
 
   return (
@@ -302,6 +357,58 @@ function App() {
             )}
           </For>
         </ul>
+        <div class="row">
+          <input
+            value={diffFromRevisionId()}
+            onInput={(event) => setDiffFromRevisionId(event.currentTarget.value)}
+            placeholder="From revision ID"
+          />
+          <input
+            value={diffToRevisionId()}
+            onInput={(event) => setDiffToRevisionId(event.currentTarget.value)}
+            placeholder="To revision ID"
+          />
+          <button
+            onClick={() =>
+              void callApi(
+                "Load diff preview",
+                () =>
+                  apiClient().request<{ lines: DiffLine[] }>(
+                    `/articles/${selectedSlug()}/diff?fromRevisionId=${diffFromRevisionId()}&toRevisionId=${diffToRevisionId()}`,
+                  ),
+                (data) => setDiffLines(data.lines),
+              )
+            }
+          >
+            Compare revisions
+          </button>
+          <button
+            onClick={() =>
+              void callApi(
+                "Load latest diff preview",
+                () =>
+                  apiClient().request<{ lines: DiffLine[] }>(
+                    `/articles/${selectedSlug()}/diff`,
+                  ),
+                (data) => setDiffLines(data.lines),
+              )
+            }
+          >
+            Compare latest pair
+          </button>
+        </div>
+        <Show when={diffLines().length > 0}>
+          <div class="diff-container mono">
+            <For each={diffLines()}>
+              {(line) => (
+                <div class={`diff-line diff-${line.type}`}>
+                  {line.type === "added" ? "+" : line.type === "removed" ? "-" : " "}
+                  {line.text}
+                </div>
+              )}
+            </For>
+          </div>
+        </Show>
       </section>
 
       <section class="panel">
@@ -359,6 +466,90 @@ function App() {
           </For>
         </ul>
       </section>
+
+      <Show when={hasModerationAccess()}>
+        <section class="panel">
+          <h2>Moderation actions</h2>
+          <div class="row">
+            <input
+              value={moderationTargetUserId()}
+              onInput={(event) => setModerationTargetUserId(event.currentTarget.value)}
+              placeholder="Target user ID"
+            />
+            <select
+              value={moderationActionType()}
+              onInput={(event) =>
+                setModerationActionType(
+                  event.currentTarget.value as "warn" | "suspend" | "ban" | "revert",
+                )
+              }
+            >
+              <option value="warn">Warn</option>
+              <option value="suspend">Suspend</option>
+              <option value="ban">Ban</option>
+              <option value="revert">Revert</option>
+            </select>
+            <input
+              value={moderationSuspendHours()}
+              onInput={(event) => setModerationSuspendHours(event.currentTarget.value)}
+              placeholder="Suspend hours"
+            />
+            <input
+              value={moderationArticleSlug()}
+              onInput={(event) => setModerationArticleSlug(event.currentTarget.value)}
+              placeholder="Revert article slug"
+            />
+            <input
+              value={moderationRevisionId()}
+              onInput={(event) => setModerationRevisionId(event.currentTarget.value)}
+              placeholder="Revert revision ID"
+            />
+          </div>
+          <div class="row">
+            <input
+              value={moderationNote()}
+              onInput={(event) => setModerationNote(event.currentTarget.value)}
+              placeholder="Moderation note"
+            />
+            <button
+              onClick={() =>
+                void callApi(
+                  "Submit moderation action",
+                  () =>
+                    apiClient().request("/moderation/actions", {
+                      method: "POST",
+                      body: {
+                        targetUserId: Number(moderationTargetUserId()),
+                        actionType: moderationActionType(),
+                        reasonType: "policy_violation",
+                        note: moderationNote(),
+                        suspendHours: Number(moderationSuspendHours()),
+                        articleSlug: moderationArticleSlug() || undefined,
+                        revisionId: moderationRevisionId()
+                          ? Number(moderationRevisionId())
+                          : undefined,
+                      },
+                    }),
+                  () => void refreshModerationActions(),
+                )
+              }
+            >
+              Submit action
+            </button>
+            <button onClick={() => void refreshModerationActions()}>Refresh actions</button>
+          </div>
+          <ul>
+            <For each={moderationActions()}>
+              {(action) => (
+                <li>
+                  #{action.id} {action.actionType} target={action.targetUserId} by=
+                  {action.actorUserId} — {action.note}
+                </li>
+              )}
+            </For>
+          </ul>
+        </section>
+      </Show>
     </main>
   );
 }

@@ -21,6 +21,29 @@ type KarmaEventInput = {
   metadata?: Record<string, unknown>;
 };
 
+const stableSerialize = (value: unknown): string => {
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => stableSerialize(item)).join(",")}]`;
+  }
+
+  if (value && typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>).sort(([a], [b]) =>
+      a.localeCompare(b),
+    );
+    return `{${entries
+      .map(([key, item]) => `${JSON.stringify(key)}:${stableSerialize(item)}`)
+      .join(",")}}`;
+  }
+
+  return JSON.stringify(value);
+};
+
+export const buildEventFingerprint = (input: KarmaEventInput): string => {
+  return `${input.userId}|${input.actorUserId ?? 0}|${input.eventType}|${input.reason.trim()}|${stableSerialize(
+    input.metadata ?? {},
+  )}`;
+};
+
 export const getKarmaConfig = async (
   client?: PoolClient,
 ): Promise<KarmaConfig> => {
@@ -70,6 +93,27 @@ const reachedDailyCap = async (
   return (result.rows[0]?.points ?? 0) >= cap;
 };
 
+const hasDuplicateFingerprintWithinWindow = async (
+  client: PoolClient,
+  eventFingerprint: string,
+  windowMinutes: number,
+): Promise<boolean> => {
+  if (windowMinutes <= 0) {
+    return false;
+  }
+
+  const result = await client.query<{ id: number }>(
+    `SELECT id
+       FROM karma_events
+      WHERE event_fingerprint = $1
+        AND created_at >= NOW() - ($2 || ' minutes')::interval
+      LIMIT 1`,
+    [eventFingerprint, String(windowMinutes)],
+  );
+
+  return Boolean(result.rows[0]);
+};
+
 export const createKarmaEvent = async (
   input: KarmaEventInput,
   client?: PoolClient,
@@ -80,6 +124,7 @@ export const createKarmaEvent = async (
   try {
     const karmaConfig = await getKarmaConfig(queryClient);
     const points = karmaConfig.weights[input.eventType];
+    const eventFingerprint = buildEventFingerprint(input);
 
     if (points > 0 && lowFrictionEventTypes.includes(input.eventType)) {
       const isCapped = await reachedDailyCap(
@@ -92,16 +137,26 @@ export const createKarmaEvent = async (
       }
     }
 
+    const isDuplicate = await hasDuplicateFingerprintWithinWindow(
+      queryClient,
+      eventFingerprint,
+      karmaConfig.antiAbuse.duplicateWindowMinutes,
+    );
+    if (isDuplicate) {
+      return;
+    }
+
     await queryClient.query(
       `INSERT INTO karma_events
-        (user_id, actor_user_id, event_type, points, reason, metadata)
-       VALUES ($1, $2, $3, $4, $5, $6::jsonb)`,
+        (user_id, actor_user_id, event_type, points, reason, event_fingerprint, metadata)
+       VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)`,
       [
         input.userId,
         input.actorUserId ?? null,
         input.eventType,
         points,
         input.reason,
+        eventFingerprint,
         JSON.stringify(input.metadata ?? {}),
       ],
     );

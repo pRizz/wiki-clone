@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyKarmaDecay } from "./service.js";
+import { applyKarmaDecay, buildEventFingerprint } from "./service.js";
 
 describe("applyKarmaDecay", () => {
   it("returns unchanged score during grace period", () => {
@@ -38,5 +38,33 @@ describe("applyKarmaDecay", () => {
     });
 
     expect(result).toBe(81);
+  });
+});
+
+describe("buildEventFingerprint", () => {
+  it("creates stable fingerprints independent of key order", () => {
+    const first = buildEventFingerprint({
+      userId: 5,
+      actorUserId: 2,
+      eventType: "revision_upvoted",
+      reason: "same reason",
+      metadata: {
+        targetType: "revision",
+        targetId: 9,
+      },
+    });
+
+    const second = buildEventFingerprint({
+      userId: 5,
+      actorUserId: 2,
+      eventType: "revision_upvoted",
+      reason: "same reason",
+      metadata: {
+        targetId: 9,
+        targetType: "revision",
+      },
+    });
+
+    expect(first).toBe(second);
   });
 });

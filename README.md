@@ -59,6 +59,12 @@ Defaults are defined in `packages/shared/src/index.ts` and stored in `karma_conf
 - Negative: downvotes, reverted edits, policy warning/suspension/ban
 - Decay: enabled, 14-day grace, 1% weekly
 
+## Observability
+
+- Structured JSON request/error logs are emitted by the API.
+- Optional Sentry error/performance telemetry is enabled when `SENTRY_DSN` is set.
+- Article create/edit flows are instrumented with custom spans.
+
 ## Testing
 
 ```bash

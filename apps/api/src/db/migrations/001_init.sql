@@ -90,9 +90,16 @@ CREATE TABLE IF NOT EXISTS karma_events (
   event_type TEXT NOT NULL,
   points INT NOT NULL,
   reason TEXT NOT NULL,
+  event_fingerprint TEXT,
   metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+ALTER TABLE karma_events
+  ADD COLUMN IF NOT EXISTS event_fingerprint TEXT;
+
+CREATE INDEX IF NOT EXISTS karma_events_event_fingerprint_idx
+  ON karma_events (event_fingerprint, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS karma_config (
   id SMALLINT PRIMARY KEY CHECK (id = 1),

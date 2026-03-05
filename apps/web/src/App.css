@@ -26,6 +26,7 @@
 }
 
 input,
+select,
 textarea {
   padding: 8px;
   border: 1px solid #9aa4b2;
@@ -65,4 +66,27 @@ ul {
 .mono {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
     "Courier New", monospace;
+}
+
+.diff-container {
+  margin-top: 8px;
+  border: 1px solid #d0d7de;
+  border-radius: 8px;
+  padding: 8px;
+  background: #f6f8fa;
+  max-height: 300px;
+  overflow: auto;
+}
+
+.diff-line {
+  white-space: pre-wrap;
+  padding: 2px 4px;
+}
+
+.diff-added {
+  background: #dafbe1;
+}
+
+.diff-removed {
+  background: #ffebe9;
 }
