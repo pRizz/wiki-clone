@@ -14,6 +14,14 @@ type DiffLine = {
   text: string;
 };
 
+type ManagedUser = {
+  id: number;
+  email: string;
+  role: "user" | "editor" | "mod" | "admin";
+  status: "active" | "suspended" | "banned";
+  suspendedUntil: string | null;
+};
+
 const tokenStorageKey = "wiki.token";
 
 function App() {
@@ -81,12 +89,29 @@ function App() {
       note: string;
     }>
   >([]);
+  const [managedUsers, setManagedUsers] = createSignal<ManagedUser[]>([]);
+  const [roleDraftByUserId, setRoleDraftByUserId] = createSignal<Record<number, ManagedUser["role"]>>({});
+  const [statusDraftByUserId, setStatusDraftByUserId] = createSignal<
+    Record<number, ManagedUser["status"]>
+  >({});
+  const [karmaConfigEditor, setKarmaConfigEditor] = createSignal(
+    JSON.stringify(
+      {
+        weights: {},
+        decay: {},
+        antiAbuse: {},
+      },
+      null,
+      2,
+    ),
+  );
 
   const apiClient = createMemo(() => new ApiClient(token()));
   const hasModerationAccess = createMemo(() => {
     const maybeUser = viewer();
     return maybeUser?.role === "mod" || maybeUser?.role === "admin";
   });
+  const hasAdminAccess = createMemo(() => viewer()?.role === "admin");
 
   const storeToken = (nextToken: string | null): void => {
     setToken(nextToken);
@@ -230,6 +255,80 @@ function App() {
     );
   };
 
+  const refreshManagedUsers = async (): Promise<void> => {
+    if (!hasAdminAccess()) {
+      setManagedUsers([]);
+      return;
+    }
+
+    await callApi(
+      "Load users",
+      () =>
+        apiClient().request<{
+          users: ManagedUser[];
+        }>("/users"),
+      (data) => {
+        setManagedUsers(data.users);
+        setRoleDraftByUserId(
+          Object.fromEntries(data.users.map((user) => [user.id, user.role])),
+        );
+        setStatusDraftByUserId(
+          Object.fromEntries(data.users.map((user) => [user.id, user.status])),
+        );
+      },
+    );
+  };
+
+  const refreshKarmaConfig = async (): Promise<void> => {
+    if (!hasAdminAccess()) {
+      return;
+    }
+
+    await callApi(
+      "Load karma config",
+      () =>
+        apiClient().request<{
+          config: unknown;
+        }>("/karma/config"),
+      (data) => setKarmaConfigEditor(JSON.stringify(data.config, null, 2)),
+    );
+  };
+
+  const updateUser = async (userId: number): Promise<void> => {
+    await callApi(
+      "Update user",
+      () =>
+        apiClient().request(`/users/${userId}`, {
+          method: "PATCH",
+          body: {
+            role: roleDraftByUserId()[userId],
+            status: statusDraftByUserId()[userId],
+          },
+        }),
+      () => void refreshManagedUsers(),
+    );
+  };
+
+  const saveKarmaConfig = async (): Promise<void> => {
+    let parsedConfig: unknown;
+    try {
+      parsedConfig = JSON.parse(karmaConfigEditor());
+    } catch (_error) {
+      setStatusMessage("Save karma config failed: invalid JSON");
+      return;
+    }
+
+    await callApi(
+      "Save karma config",
+      () =>
+        apiClient().request("/karma/config", {
+          method: "PUT",
+          body: parsedConfig,
+        }),
+      () => void refreshKarmaConfig(),
+    );
+  };
+
   createEffect(() => {
     void refreshViewer();
   });
@@ -252,6 +351,16 @@ function App() {
 
   createEffect(() => {
     void refreshModerationActions();
+  });
+
+  createEffect(() => {
+    if (!hasAdminAccess()) {
+      setManagedUsers([]);
+      return;
+    }
+
+    void refreshManagedUsers();
+    void refreshKarmaConfig();
   });
 
   return (
@@ -698,6 +807,70 @@ function App() {
               )}
             </For>
           </ul>
+        </section>
+      </Show>
+
+      <Show when={hasAdminAccess()}>
+        <section class="panel">
+          <h2>Admin · User role/status CRUD</h2>
+          <button onClick={() => void refreshManagedUsers()}>Refresh users</button>
+          <ul>
+            <For each={managedUsers()}>
+              {(managedUser) => (
+                <li>
+                  #{managedUser.id} {managedUser.email}
+                  <div class="row">
+                    <select
+                      aria-label={`Role for user ${managedUser.id}`}
+                      value={roleDraftByUserId()[managedUser.id] ?? managedUser.role}
+                      onInput={(event) =>
+                        setRoleDraftByUserId((current) => ({
+                          ...current,
+                          [managedUser.id]: event.currentTarget.value as ManagedUser["role"],
+                        }))
+                      }
+                    >
+                      <option value="user">user</option>
+                      <option value="editor">editor</option>
+                      <option value="mod">mod</option>
+                      <option value="admin">admin</option>
+                    </select>
+                    <select
+                      aria-label={`Status for user ${managedUser.id}`}
+                      value={statusDraftByUserId()[managedUser.id] ?? managedUser.status}
+                      onInput={(event) =>
+                        setStatusDraftByUserId((current) => ({
+                          ...current,
+                          [managedUser.id]: event.currentTarget.value as ManagedUser["status"],
+                        }))
+                      }
+                    >
+                      <option value="active">active</option>
+                      <option value="suspended">suspended</option>
+                      <option value="banned">banned</option>
+                    </select>
+                    <button onClick={() => void updateUser(managedUser.id)}>
+                      Apply updates
+                    </button>
+                  </div>
+                </li>
+              )}
+            </For>
+          </ul>
+        </section>
+
+        <section class="panel">
+          <h2>Admin · Karma configuration JSON</h2>
+          <div class="row">
+            <button onClick={() => void refreshKarmaConfig()}>Refresh config</button>
+            <button onClick={() => void saveKarmaConfig()}>Save config</button>
+          </div>
+          <textarea
+            aria-label="Karma configuration JSON"
+            rows={18}
+            value={karmaConfigEditor()}
+            onInput={(event) => setKarmaConfigEditor(event.currentTarget.value)}
+          />
         </section>
       </Show>
     </main>
