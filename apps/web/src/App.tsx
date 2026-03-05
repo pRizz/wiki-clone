@@ -1,5 +1,6 @@
 import { For, Show, createEffect, createMemo, createSignal } from "solid-js";
 import { ApiClient } from "./lib/apiClient";
+import { captureException, logger, startUiSpan } from "./lib/observability";
 import "./App.css";
 
 type BasicUser = {
@@ -158,10 +159,14 @@ function App() {
     onSuccess?: (value: T) => void,
   ): Promise<void> => {
     try {
-      const value = await fn();
+      const value = await startUiSpan(action, fn);
       onSuccess?.(value);
       setStatusMessage(`${action} succeeded.`);
     } catch (error) {
+      captureException(error);
+      logger.error(logger.fmt`UI action failed: ${action}`, {
+        action,
+      });
       const message = error instanceof Error ? error.message : String(error);
       setStatusMessage(`${action} failed: ${message}`);
     }

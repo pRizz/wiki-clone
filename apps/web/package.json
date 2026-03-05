@@ -12,6 +12,7 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "@sentry/react": "^10.42.0",
     "@wiki/shared": "file:../../packages/shared",
     "solid-js": "^1.9.10"
   },

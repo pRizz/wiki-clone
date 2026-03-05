@@ -31,10 +31,20 @@ def request_json(
     try:
         with urllib.request.urlopen(request) as response:
             payload = response.read().decode()
-            return response.status, json.loads(payload) if payload else {}
+            if not payload:
+                return response.status, {}
+            try:
+                return response.status, json.loads(payload)
+            except json.JSONDecodeError:
+                return response.status, {"raw": payload}
     except urllib.error.HTTPError as error:
         payload = error.read().decode()
-        return error.code, json.loads(payload) if payload else {}
+        if not payload:
+            return error.code, {}
+        try:
+            return error.code, json.loads(payload)
+        except json.JSONDecodeError:
+            return error.code, {"raw": payload}
 
 
 def assert_status(actual: int, expected: int, context: str) -> None:
@@ -64,7 +74,6 @@ def login(email: str) -> tuple[str, dict[str, Any]]:
 
 def main() -> None:
     timestamp = str(int(time.time()))
-    _, _ = login("admin@example.com")
     admin_token, _ = login("admin@example.com")
     mod_token, mod_user = login(f"security-mod-{timestamp}@example.com")
     target_token, target_user = login(f"security-target-{timestamp}@example.com")

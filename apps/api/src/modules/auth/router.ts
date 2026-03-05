@@ -20,7 +20,7 @@ const magicLinkTtlMinutes = 20;
 const authRouter = Router();
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: 30,
+  limit: 100,
   standardHeaders: true,
   legacyHeaders: false,
   skip: () => process.env.NODE_ENV === "test",

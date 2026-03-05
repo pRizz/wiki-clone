@@ -66,6 +66,7 @@ Defaults are defined in `packages/shared/src/index.ts` and stored in `karma_conf
 
 - Structured JSON request/error logs are emitted by the API.
 - Optional Sentry error/performance telemetry is enabled when `SENTRY_DSN` is set.
+- Optional frontend Sentry telemetry is enabled when `VITE_SENTRY_DSN` is set.
 - Article create/edit flows are instrumented with custom spans.
 
 ## Security Notes
