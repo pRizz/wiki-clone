@@ -82,3 +82,10 @@ Defaults are defined in `packages/shared/src/index.ts` and stored in `karma_conf
 npm run typecheck
 npm run test
 ```
+
+Runtime smoke scripts:
+
+```bash
+npm run e2e:smoke
+npm run perf:smoke
+```

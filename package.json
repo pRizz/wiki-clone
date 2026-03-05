@@ -10,7 +10,9 @@
     "build": "npm run -ws build",
     "dev:web": "npm run --workspace @wiki/web dev",
     "dev:api": "npm run --workspace @wiki/api dev",
+    "e2e:smoke": "python3 scripts/e2e_smoke.py",
     "lint": "npm run -ws lint",
+    "perf:smoke": "bash scripts/perf_smoke.sh",
     "test": "npm run -ws test",
     "typecheck": "npm run -ws typecheck"
   },
