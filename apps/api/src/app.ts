@@ -1,5 +1,6 @@
 import cors from "cors";
 import express from "express";
+import helmet from "helmet";
 import { config } from "./config.js";
 import { attachAuthUser } from "./middleware/auth.js";
 import { requestLogger } from "./middleware/request-logger.js";
@@ -23,6 +24,7 @@ export const createApp = () => {
       credentials: true,
     }),
   );
+  app.use(helmet());
   app.use(express.json({ limit: "2mb" }));
   app.use(requestLogger);
   app.use(attachAuthUser);
@@ -47,7 +49,7 @@ export const createApp = () => {
       res: express.Response,
       _next: express.NextFunction,
     ) => {
-    if (error instanceof Error) {
+      if (error instanceof Error) {
         captureException(error);
         logError("unhandled_error", {
           message: error.message,

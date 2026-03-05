@@ -236,7 +236,12 @@ function App() {
       <section class="panel">
         <h2>Authentication (email + magic link + passkey CRUD)</h2>
         <div class="row">
-          <input value={email()} onInput={(event) => setEmail(event.currentTarget.value)} placeholder="Email" />
+          <input
+            aria-label="Email"
+            value={email()}
+            onInput={(event) => setEmail(event.currentTarget.value)}
+            placeholder="Email"
+          />
           <button
             onClick={() =>
               void callApi(
@@ -253,7 +258,12 @@ function App() {
           <p class="mono">Dev token: {issuedMagicToken()}</p>
         </Show>
         <div class="row">
-          <input value={magicToken()} onInput={(event) => setMagicToken(event.currentTarget.value)} placeholder="Magic link token" />
+          <input
+            aria-label="Magic link token"
+            value={magicToken()}
+            onInput={(event) => setMagicToken(event.currentTarget.value)}
+            placeholder="Magic link token"
+          />
           <button
             onClick={() =>
               void callApi(
@@ -278,9 +288,24 @@ function App() {
                 Signed in as <strong>{activeViewer().email}</strong> ({activeViewer().role})
               </p>
               <div class="row">
-                <input value={passkeyName()} onInput={(event) => setPasskeyName(event.currentTarget.value)} placeholder="Passkey name" />
-                <input value={passkeyCredentialId()} onInput={(event) => setPasskeyCredentialId(event.currentTarget.value)} placeholder="Credential ID" />
-                <input value={passkeyPublicKey()} onInput={(event) => setPasskeyPublicKey(event.currentTarget.value)} placeholder="Public key" />
+                <input
+                  aria-label="Passkey name"
+                  value={passkeyName()}
+                  onInput={(event) => setPasskeyName(event.currentTarget.value)}
+                  placeholder="Passkey name"
+                />
+                <input
+                  aria-label="Passkey credential ID"
+                  value={passkeyCredentialId()}
+                  onInput={(event) => setPasskeyCredentialId(event.currentTarget.value)}
+                  placeholder="Credential ID"
+                />
+                <input
+                  aria-label="Passkey public key"
+                  value={passkeyPublicKey()}
+                  onInput={(event) => setPasskeyPublicKey(event.currentTarget.value)}
+                  placeholder="Public key"
+                />
                 <button
                   onClick={() =>
                     void callApi(
@@ -321,14 +346,34 @@ function App() {
       <section class="panel">
         <h2>Articles · Revisions · Revert</h2>
         <div class="row">
-          <input value={selectedSlug()} onInput={(event) => setSelectedSlug(event.currentTarget.value)} placeholder="Article slug (e.g. open-source)" />
+          <input
+            aria-label="Article slug"
+            value={selectedSlug()}
+            onInput={(event) => setSelectedSlug(event.currentTarget.value)}
+            placeholder="Article slug (e.g. open-source)"
+          />
           <button onClick={() => void refreshCurrentArticle()}>Load article</button>
         </div>
         <div class="row">
-          <input value={articleTitle()} onInput={(event) => setArticleTitle(event.currentTarget.value)} placeholder="Article title" />
-          <input value={articleSummary()} onInput={(event) => setArticleSummary(event.currentTarget.value)} placeholder="Edit summary" />
+          <input
+            aria-label="Article title"
+            value={articleTitle()}
+            onInput={(event) => setArticleTitle(event.currentTarget.value)}
+            placeholder="Article title"
+          />
+          <input
+            aria-label="Article edit summary"
+            value={articleSummary()}
+            onInput={(event) => setArticleSummary(event.currentTarget.value)}
+            placeholder="Edit summary"
+          />
         </div>
-        <textarea rows={8} value={articleContent()} onInput={(event) => setArticleContent(event.currentTarget.value)} />
+        <textarea
+          aria-label="Article content"
+          rows={8}
+          value={articleContent()}
+          onInput={(event) => setArticleContent(event.currentTarget.value)}
+        />
         <div class="row">
           <button onClick={() => void callApi("Create article", () => apiClient().request("/articles", { method: "POST", body: { slug: selectedSlug(), title: articleTitle(), content: articleContent(), summary: articleSummary() } }), () => void refreshArticles())}>Create</button>
           <button onClick={() => void callApi("Edit article", () => apiClient().request(`/articles/${selectedSlug()}`, { method: "PUT", body: { content: articleContent(), summary: articleSummary() } }), () => void refreshCurrentArticle())}>Save edit</button>
@@ -359,11 +404,13 @@ function App() {
         </ul>
         <div class="row">
           <input
+            aria-label="From revision ID"
             value={diffFromRevisionId()}
             onInput={(event) => setDiffFromRevisionId(event.currentTarget.value)}
             placeholder="From revision ID"
           />
           <input
+            aria-label="To revision ID"
             value={diffToRevisionId()}
             onInput={(event) => setDiffToRevisionId(event.currentTarget.value)}
             placeholder="To revision ID"
@@ -414,7 +461,12 @@ function App() {
       <section class="panel">
         <h2>Discussion threads</h2>
         <div class="row">
-          <input value={threadTitle()} onInput={(event) => setThreadTitle(event.currentTarget.value)} placeholder="New thread title" />
+          <input
+            aria-label="Discussion thread title"
+            value={threadTitle()}
+            onInput={(event) => setThreadTitle(event.currentTarget.value)}
+            placeholder="New thread title"
+          />
           <button onClick={() => void callApi("Create thread", () => apiClient().request(`/articles/${selectedSlug()}/discussions`, { method: "POST", body: { title: threadTitle() } }), () => void refreshCurrentArticle())}>Create thread</button>
         </div>
         <ul>
@@ -429,7 +481,12 @@ function App() {
         <Show when={selectedThreadId()}>
           <div class="stack">
             <div class="row">
-              <input value={commentContent()} onInput={(event) => setCommentContent(event.currentTarget.value)} placeholder="Comment content" />
+              <input
+                aria-label="Discussion comment content"
+                value={commentContent()}
+                onInput={(event) => setCommentContent(event.currentTarget.value)}
+                placeholder="Comment content"
+              />
               <button onClick={() => void callApi("Post comment", () => apiClient().request(`/discussions/${selectedThreadId()}/comments`, { method: "POST", body: { content: commentContent() } }), () => void refreshComments())}>Post</button>
             </div>
             <ul>
@@ -450,7 +507,12 @@ function App() {
       <section class="panel">
         <h2>Karma ledger</h2>
         <div class="row">
-          <input value={karmaUserId()} onInput={(event) => setKarmaUserId(event.currentTarget.value)} placeholder="User ID" />
+          <input
+            aria-label="Karma user ID"
+            value={karmaUserId()}
+            onInput={(event) => setKarmaUserId(event.currentTarget.value)}
+            placeholder="User ID"
+          />
           <button onClick={() => void callApi("Load karma", () => apiClient().request<{ totals: { total: number }; ledger: Array<{ id: number; eventType: string; points: number; reason: string }> }>(`/karma/users/${karmaUserId()}`), (data) => { setKarmaTotal(data.totals.total); setKarmaLedger(data.ledger); })}>Load ledger</button>
         </div>
         <Show when={karmaTotal() !== null}>
@@ -472,11 +534,13 @@ function App() {
           <h2>Moderation actions</h2>
           <div class="row">
             <input
+              aria-label="Moderation target user ID"
               value={moderationTargetUserId()}
               onInput={(event) => setModerationTargetUserId(event.currentTarget.value)}
               placeholder="Target user ID"
             />
             <select
+              aria-label="Moderation action type"
               value={moderationActionType()}
               onInput={(event) =>
                 setModerationActionType(
@@ -490,16 +554,19 @@ function App() {
               <option value="revert">Revert</option>
             </select>
             <input
+              aria-label="Suspension duration in hours"
               value={moderationSuspendHours()}
               onInput={(event) => setModerationSuspendHours(event.currentTarget.value)}
               placeholder="Suspend hours"
             />
             <input
+              aria-label="Moderation revert article slug"
               value={moderationArticleSlug()}
               onInput={(event) => setModerationArticleSlug(event.currentTarget.value)}
               placeholder="Revert article slug"
             />
             <input
+              aria-label="Moderation revert revision ID"
               value={moderationRevisionId()}
               onInput={(event) => setModerationRevisionId(event.currentTarget.value)}
               placeholder="Revert revision ID"
@@ -507,6 +574,7 @@ function App() {
           </div>
           <div class="row">
             <input
+              aria-label="Moderation note"
               value={moderationNote()}
               onInput={(event) => setModerationNote(event.currentTarget.value)}
               placeholder="Moderation note"

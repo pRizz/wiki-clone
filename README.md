@@ -65,6 +65,13 @@ Defaults are defined in `packages/shared/src/index.ts` and stored in `karma_conf
 - Optional Sentry error/performance telemetry is enabled when `SENTRY_DSN` is set.
 - Article create/edit flows are instrumented with custom spans.
 
+## Security Notes
+
+- Input validation is enforced with shared Zod schemas on all write endpoints.
+- Role-based authorization gates privileged endpoints.
+- API security headers are enabled via `helmet`.
+- Auth endpoints are protected by request rate limiting to mitigate abuse.
+
 ## Testing
 
 ```bash

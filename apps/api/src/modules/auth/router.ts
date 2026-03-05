@@ -1,4 +1,5 @@
 import { Router } from "express";
+import rateLimit from "express-rate-limit";
 import {
   createPasskeySchema,
   magicLinkRequestSchema,
@@ -17,6 +18,12 @@ import type { AuthedRequest } from "../../types.js";
 const magicLinkTtlMinutes = 20;
 
 const authRouter = Router();
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 const makeSessionUser = (row: {
   id: number;
@@ -51,6 +58,7 @@ const upsertUserByEmail = async (email: string) => {
 
 authRouter.post(
   "/magic-link/request",
+  authLimiter,
   validateBody(magicLinkRequestSchema),
   async (req, res) => {
     const { email } = magicLinkRequestSchema.parse(req.body);
@@ -81,6 +89,7 @@ authRouter.post(
 
 authRouter.post(
   "/magic-link/verify",
+  authLimiter,
   validateBody(magicLinkVerifySchema),
   async (req, res) => {
     const { token } = magicLinkVerifySchema.parse(req.body);
@@ -148,6 +157,7 @@ authRouter.post(
 
 authRouter.post(
   "/passkeys/login",
+  authLimiter,
   validateBody(passkeyLoginSchema),
   async (req, res) => {
     const { credentialId } = passkeyLoginSchema.parse(req.body);
