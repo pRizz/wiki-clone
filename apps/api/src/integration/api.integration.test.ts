@@ -180,4 +180,45 @@ describe("API integration", () => {
     const passwordEndpointResponse = await request(app).post("/api/auth/password/login");
     expect(passwordEndpointResponse.status).toBe(404);
   });
+
+  it("records duplicate-event abuse signals", async () => {
+    const adminEmail = "admin@example.com";
+    await loginWithMagicLink(adminEmail);
+    await pool.query(`UPDATE users SET role = 'admin' WHERE email = $1`, [adminEmail]);
+    const adminAuth = await loginWithMagicLink(adminEmail);
+
+    const targetAuth = await loginWithMagicLink(uniqueEmail("duplicate-signal"));
+
+    const firstWarning = await request(app)
+      .post("/api/moderation/actions")
+      .set("Authorization", `Bearer ${adminAuth.token}`)
+      .send({
+        targetUserId: targetAuth.user.id,
+        actionType: "warn",
+        reasonType: "policy_violation",
+        note: "duplicate-signal-note",
+      });
+    expect(firstWarning.status).toBe(201);
+
+    const secondWarning = await request(app)
+      .post("/api/moderation/actions")
+      .set("Authorization", `Bearer ${adminAuth.token}`)
+      .send({
+        targetUserId: targetAuth.user.id,
+        actionType: "warn",
+        reasonType: "policy_violation",
+        note: "duplicate-signal-note",
+      });
+    expect(secondWarning.status).toBe(201);
+
+    const signalsResponse = await request(app)
+      .get(`/api/karma/signals?userId=${targetAuth.user.id}`)
+      .set("Authorization", `Bearer ${adminAuth.token}`);
+    expect(signalsResponse.status).toBe(200);
+    expect(
+      signalsResponse.body.signals.some(
+        (signal: { signalType: string }) => signal.signalType === "duplicate_event",
+      ),
+    ).toBe(true);
+  });
 });

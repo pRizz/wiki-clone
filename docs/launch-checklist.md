@@ -22,6 +22,7 @@
 - [x] Revision diff preview and revert
 - [x] Discussion threads + comments + voting
 - [x] Karma ledger with configurable decay/weights
+- [x] Suspicious behavior flag listing for moderators/admins
 - [x] Moderation actions with admin-only ban
 
 ## Hardening

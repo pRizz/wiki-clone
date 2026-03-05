@@ -7,6 +7,7 @@ Wikipedia-style collaborative site with:
 - Discussion threads and comments
 - Revision/comment voting
 - Configurable karma engine with visible ledger
+- Suspicious behavior flags for duplicate-suppressed and cap-suppressed karma activity
 - Moderation actions (warn/suspend/ban/revert), with admin-only bans
 - Email magic link auth + passkey CRUD and passkey login
 

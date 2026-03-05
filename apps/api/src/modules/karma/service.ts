@@ -21,6 +21,14 @@ type KarmaEventInput = {
   metadata?: Record<string, unknown>;
 };
 
+type AbuseSignalInput = {
+  userId: number;
+  actorUserId?: number | null;
+  signalType: "daily_cap_reached" | "duplicate_event";
+  reason: string;
+  metadata?: Record<string, unknown>;
+};
+
 const stableSerialize = (value: unknown): string => {
   if (Array.isArray(value)) {
     return `[${value.map((item) => stableSerialize(item)).join(",")}]`;
@@ -40,6 +48,12 @@ const stableSerialize = (value: unknown): string => {
 
 export const buildEventFingerprint = (input: KarmaEventInput): string => {
   return `${input.userId}|${input.actorUserId ?? 0}|${input.eventType}|${input.reason.trim()}|${stableSerialize(
+    input.metadata ?? {},
+  )}`;
+};
+
+const buildAbuseSignalFingerprint = (input: AbuseSignalInput): string => {
+  return `${input.userId}|${input.actorUserId ?? 0}|${input.signalType}|${input.reason.trim()}|${stableSerialize(
     input.metadata ?? {},
   )}`;
 };
@@ -114,6 +128,57 @@ const hasDuplicateFingerprintWithinWindow = async (
   return Boolean(result.rows[0]);
 };
 
+const hasRecentAbuseSignal = async (
+  client: PoolClient,
+  signalFingerprint: string,
+  windowMinutes: number,
+): Promise<boolean> => {
+  if (windowMinutes <= 0) {
+    return false;
+  }
+
+  const result = await client.query<{ id: number }>(
+    `SELECT id
+       FROM abuse_signals
+      WHERE signal_fingerprint = $1
+        AND created_at >= NOW() - ($2 || ' minutes')::interval
+      LIMIT 1`,
+    [signalFingerprint, String(windowMinutes)],
+  );
+
+  return Boolean(result.rows[0]);
+};
+
+const createAbuseSignal = async (
+  client: PoolClient,
+  input: AbuseSignalInput,
+  dedupeWindowMinutes: number,
+): Promise<void> => {
+  const signalFingerprint = buildAbuseSignalFingerprint(input);
+  const isDuplicateSignal = await hasRecentAbuseSignal(
+    client,
+    signalFingerprint,
+    dedupeWindowMinutes,
+  );
+  if (isDuplicateSignal) {
+    return;
+  }
+
+  await client.query(
+    `INSERT INTO abuse_signals
+      (user_id, actor_user_id, signal_type, reason, signal_fingerprint, metadata)
+     VALUES ($1, $2, $3, $4, $5, $6::jsonb)`,
+    [
+      input.userId,
+      input.actorUserId ?? null,
+      input.signalType,
+      input.reason,
+      signalFingerprint,
+      JSON.stringify(input.metadata ?? {}),
+    ],
+  );
+};
+
 export const createKarmaEvent = async (
   input: KarmaEventInput,
   client?: PoolClient,
@@ -133,6 +198,17 @@ export const createKarmaEvent = async (
         karmaConfig.antiAbuse.dailyLowFrictionPositiveCap,
       );
       if (isCapped) {
+        await createAbuseSignal(
+          queryClient,
+          {
+            userId: input.userId,
+            actorUserId: input.actorUserId,
+            signalType: "daily_cap_reached",
+            reason: `Daily cap reached for ${input.eventType}`,
+            metadata: input.metadata,
+          },
+          karmaConfig.antiAbuse.duplicateWindowMinutes,
+        );
         return;
       }
     }
@@ -143,6 +219,17 @@ export const createKarmaEvent = async (
       karmaConfig.antiAbuse.duplicateWindowMinutes,
     );
     if (isDuplicate) {
+      await createAbuseSignal(
+        queryClient,
+        {
+          userId: input.userId,
+          actorUserId: input.actorUserId,
+          signalType: "duplicate_event",
+          reason: `Duplicate event suppressed for ${input.eventType}`,
+          metadata: input.metadata,
+        },
+        karmaConfig.antiAbuse.duplicateWindowMinutes,
+      );
       return;
     }
 
@@ -165,6 +252,70 @@ export const createKarmaEvent = async (
       queryClient.release();
     }
   }
+};
+
+export const listAbuseSignals = async (
+  options: {
+    userId?: number;
+    limit?: number;
+  } = {},
+): Promise<
+  Array<{
+    id: number;
+    userId: number;
+    actorUserId: number | null;
+    signalType: string;
+    reason: string;
+    metadata: Record<string, unknown>;
+    createdAt: string;
+  }>
+> => {
+  const limit = Math.max(1, Math.min(options.limit ?? 100, 500));
+  const maybeUserId = options.userId;
+
+  const result =
+    typeof maybeUserId === "number"
+      ? await pool.query<{
+          id: number;
+          user_id: number;
+          actor_user_id: number | null;
+          signal_type: string;
+          reason: string;
+          metadata: Record<string, unknown>;
+          created_at: string;
+        }>(
+          `SELECT id, user_id, actor_user_id, signal_type, reason, metadata, created_at
+             FROM abuse_signals
+            WHERE user_id = $1
+            ORDER BY created_at DESC
+            LIMIT $2`,
+          [maybeUserId, limit],
+        )
+      : await pool.query<{
+          id: number;
+          user_id: number;
+          actor_user_id: number | null;
+          signal_type: string;
+          reason: string;
+          metadata: Record<string, unknown>;
+          created_at: string;
+        }>(
+          `SELECT id, user_id, actor_user_id, signal_type, reason, metadata, created_at
+             FROM abuse_signals
+            ORDER BY created_at DESC
+            LIMIT $1`,
+          [limit],
+        );
+
+  return result.rows.map((row) => ({
+    id: row.id,
+    userId: row.user_id,
+    actorUserId: row.actor_user_id,
+    signalType: row.signal_type,
+    reason: row.reason,
+    metadata: row.metadata ?? {},
+    createdAt: row.created_at,
+  }));
 };
 
 export const getUserKarmaLedger = async (

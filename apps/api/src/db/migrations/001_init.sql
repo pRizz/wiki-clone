@@ -117,3 +117,20 @@ CREATE TABLE IF NOT EXISTS moderation_actions (
   target_revision_id BIGINT REFERENCES article_revisions(id),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS abuse_signals (
+  id BIGSERIAL PRIMARY KEY,
+  user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  actor_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
+  signal_type TEXT NOT NULL,
+  reason TEXT NOT NULL,
+  signal_fingerprint TEXT NOT NULL,
+  metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS abuse_signals_user_created_at_idx
+  ON abuse_signals (user_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS abuse_signals_signal_fingerprint_idx
+  ON abuse_signals (signal_fingerprint, created_at DESC);

@@ -6,6 +6,7 @@ import {
   calculateKarmaTotals,
   getKarmaConfig,
   getUserKarmaLedger,
+  listAbuseSignals,
   updateKarmaConfig,
 } from "./service.js";
 
@@ -45,5 +46,35 @@ karmaRouter.get("/users/:userId", async (req, res) => {
     ledger,
   });
 });
+
+karmaRouter.get(
+  "/signals",
+  requireAuth,
+  requireRole(["mod", "admin"]),
+  async (req, res) => {
+    const maybeUserIdQuery = req.query.userId;
+    const maybeLimitQuery = req.query.limit;
+
+    const userId =
+      maybeUserIdQuery === undefined ? undefined : Number(maybeUserIdQuery);
+    if (userId !== undefined && Number.isNaN(userId)) {
+      res.status(400).json({ error: "Invalid userId query param" });
+      return;
+    }
+
+    const limit =
+      maybeLimitQuery === undefined ? undefined : Number(maybeLimitQuery);
+    if (limit !== undefined && Number.isNaN(limit)) {
+      res.status(400).json({ error: "Invalid limit query param" });
+      return;
+    }
+
+    const signals = await listAbuseSignals({
+      userId,
+      limit,
+    });
+    res.json({ signals });
+  },
+);
 
 export { karmaRouter };

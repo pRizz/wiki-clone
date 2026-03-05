@@ -89,6 +89,15 @@ function App() {
       note: string;
     }>
   >([]);
+  const [abuseSignals, setAbuseSignals] = createSignal<
+    Array<{
+      id: number;
+      userId: number;
+      signalType: string;
+      reason: string;
+      createdAt: string;
+    }>
+  >([]);
   const [managedUsers, setManagedUsers] = createSignal<ManagedUser[]>([]);
   const [roleDraftByUserId, setRoleDraftByUserId] = createSignal<Record<number, ManagedUser["role"]>>({});
   const [statusDraftByUserId, setStatusDraftByUserId] = createSignal<
@@ -236,6 +245,7 @@ function App() {
   const refreshModerationActions = async (): Promise<void> => {
     if (!hasModerationAccess()) {
       setModerationActions([]);
+      setAbuseSignals([]);
       return;
     }
 
@@ -252,6 +262,25 @@ function App() {
           }>;
         }>("/moderation/actions"),
       (data) => setModerationActions(data.actions),
+    );
+
+    await callApi(
+      "Load abuse signals",
+      () =>
+        apiClient().request<{
+          signals: Array<{
+            id: number;
+            userId: number;
+            signalType: string;
+            reason: string;
+            createdAt: string;
+          }>;
+        }>(
+          moderationTargetUserId()
+            ? `/karma/signals?userId=${moderationTargetUserId()}`
+            : "/karma/signals",
+        ),
+      (data) => setAbuseSignals(data.signals),
     );
   };
 
@@ -803,6 +832,17 @@ function App() {
                 <li>
                   #{action.id} {action.actionType} target={action.targetUserId} by=
                   {action.actorUserId} — {action.note}
+                </li>
+              )}
+            </For>
+          </ul>
+          <h3>Suspicious behavior flags</h3>
+          <ul>
+            <For each={abuseSignals()}>
+              {(signal) => (
+                <li>
+                  #{signal.id} user={signal.userId} {signal.signalType} — {signal.reason} (
+                  {signal.createdAt})
                 </li>
               )}
             </For>
