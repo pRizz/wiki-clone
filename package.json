@@ -1,0 +1,25 @@
+{
+  "name": "wiki-clone",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run -ws build",
+    "dev:web": "npm run --workspace @wiki/web dev",
+    "dev:api": "npm run --workspace @wiki/api dev",
+    "e2e:smoke": "npm run --workspace @wiki/api seed:admin && python3 scripts/e2e_smoke.py",
+    "lint": "npm run -ws lint",
+    "perf:edit-smoke": "npm run --workspace @wiki/api seed:admin && python3 scripts/edit_latency_smoke.py",
+    "perf:smoke": "bash scripts/perf_smoke.sh",
+    "security:smoke": "npm run --workspace @wiki/api seed:admin && python3 scripts/security_smoke.py",
+    "test": "npm run -ws test",
+    "typecheck": "npm run -ws typecheck"
+  },
+  "engines": {
+    "node": ">=20.11.0"
+  },
+  "license": "MIT"
+}

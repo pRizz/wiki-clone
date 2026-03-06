@@ -1,0 +1,394 @@
+import request from "supertest";
+import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { createApp } from "../app.js";
+import { runMigrations } from "../db/migrate.js";
+import { pool } from "../db/pool.js";
+
+const app = createApp();
+
+const resetDatabase = async (): Promise<void> => {
+  await pool.query("DROP SCHEMA public CASCADE");
+  await pool.query("CREATE SCHEMA public");
+  await runMigrations();
+};
+
+const uniqueEmail = (prefix: string): string => {
+  const suffix = `${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+  return `${prefix}-${suffix}@example.com`;
+};
+
+const requestMagicLinkToken = async (email: string): Promise<string> => {
+  const response = await request(app)
+    .post("/api/auth/magic-link/request")
+    .send({ email });
+
+  expect(response.status).toBe(201);
+  expect(typeof response.body.token).toBe("string");
+  return response.body.token as string;
+};
+
+const loginWithMagicLink = async (
+  email: string,
+): Promise<{
+  token: string;
+  user: { id: number; email: string; role: string; status: string };
+}> => {
+  const magicToken = await requestMagicLinkToken(email);
+  const verifyResponse = await request(app)
+    .post("/api/auth/magic-link/verify")
+    .send({ token: magicToken });
+
+  expect(verifyResponse.status).toBe(200);
+  return verifyResponse.body as {
+    token: string;
+    user: { id: number; email: string; role: string; status: string };
+  };
+};
+
+describe("API integration", () => {
+  beforeEach(async () => {
+    await resetDatabase();
+  });
+
+  afterAll(async () => {
+    await pool.end();
+  });
+
+  it("creates revisions and karma events when article is edited", async () => {
+    const auth = await loginWithMagicLink(uniqueEmail("editor"));
+
+    const createResponse = await request(app)
+      .post("/api/articles")
+      .set("Authorization", `Bearer ${auth.token}`)
+      .send({
+        slug: "integration-edit",
+        title: "Integration Edit",
+        content: "hello\nworld",
+        summary: "init",
+      });
+    expect(createResponse.status).toBe(201);
+
+    const editResponse = await request(app)
+      .put("/api/articles/integration-edit")
+      .set("Authorization", `Bearer ${auth.token}`)
+      .send({
+        content: "hello\nworld updated",
+        summary: "expanded",
+      });
+    expect(editResponse.status).toBe(200);
+
+    const historyResponse = await request(app).get("/api/articles/integration-edit/history");
+    expect(historyResponse.status).toBe(200);
+    expect(historyResponse.body.revisions).toHaveLength(2);
+
+    const karmaResponse = await request(app).get(`/api/karma/users/${auth.user.id}`);
+    expect(karmaResponse.status).toBe(200);
+    expect(
+      karmaResponse.body.ledger.some(
+        (entry: { eventType: string }) => entry.eventType === "article_created",
+      ),
+    ).toBe(true);
+    expect(
+      karmaResponse.body.ledger.some(
+        (entry: { eventType: string }) => entry.eventType === "article_edited",
+      ),
+    ).toBe(true);
+  });
+
+  it("applies moderation revert karma effects", async () => {
+    const adminEmail = "admin@example.com";
+    const adminAuthInitial = await loginWithMagicLink(adminEmail);
+    await pool.query(`UPDATE users SET role = 'admin' WHERE email = $1`, [adminEmail]);
+    const adminAuth = await loginWithMagicLink(adminEmail);
+    expect(adminAuthInitial.user.email).toBe(adminEmail);
+
+    const editorAuth = await loginWithMagicLink(uniqueEmail("editor-revert"));
+    const createResponse = await request(app)
+      .post("/api/articles")
+      .set("Authorization", `Bearer ${editorAuth.token}`)
+      .send({
+        slug: "integration-revert",
+        title: "Integration Revert",
+        content: "first version",
+        summary: "init",
+      });
+    expect(createResponse.status).toBe(201);
+
+    const editResponse = await request(app)
+      .put("/api/articles/integration-revert")
+      .set("Authorization", `Bearer ${editorAuth.token}`)
+      .send({
+        content: "second version",
+        summary: "update",
+      });
+    expect(editResponse.status).toBe(200);
+
+    const historyResponse = await request(app).get(
+      "/api/articles/integration-revert/history",
+    );
+    expect(historyResponse.status).toBe(200);
+    const newestRevisionId = historyResponse.body.revisions[0].id as number;
+
+    const moderationResponse = await request(app)
+      .post("/api/moderation/actions")
+      .set("Authorization", `Bearer ${adminAuth.token}`)
+      .send({
+        targetUserId: editorAuth.user.id,
+        actionType: "revert",
+        reasonType: "policy_violation",
+        note: "integration revert",
+        articleSlug: "integration-revert",
+        revisionId: newestRevisionId,
+      });
+    expect(moderationResponse.status).toBe(201);
+
+    const karmaResponse = await request(app).get(`/api/karma/users/${editorAuth.user.id}`);
+    expect(karmaResponse.status).toBe(200);
+    expect(
+      karmaResponse.body.ledger.some(
+        (entry: { eventType: string }) => entry.eventType === "edit_reverted",
+      ),
+    ).toBe(true);
+  });
+
+  it("supports passkey login sessions and has no password endpoint", async () => {
+    const auth = await loginWithMagicLink(uniqueEmail("passkey"));
+    const credentialId = `cred-${Date.now()}`;
+
+    const createPasskeyResponse = await request(app)
+      .post("/api/auth/passkeys")
+      .set("Authorization", `Bearer ${auth.token}`)
+      .send({
+        name: "Integration Device",
+        credentialId,
+        publicKey: "integration-public-key",
+      });
+    expect(createPasskeyResponse.status).toBe(201);
+
+    const passkeyLoginResponse = await request(app)
+      .post("/api/auth/passkeys/login")
+      .send({ credentialId });
+    expect(passkeyLoginResponse.status).toBe(200);
+    expect(typeof passkeyLoginResponse.body.token).toBe("string");
+
+    const meResponse = await request(app)
+      .get("/api/auth/me")
+      .set("Authorization", `Bearer ${passkeyLoginResponse.body.token as string}`);
+    expect(meResponse.status).toBe(200);
+    expect(meResponse.body.user.email).toBe(auth.user.email);
+
+    const passwordEndpointResponse = await request(app).post("/api/auth/password/login");
+    expect(passwordEndpointResponse.status).toBe(404);
+  });
+
+  it("records duplicate-event abuse signals", async () => {
+    const adminEmail = "admin@example.com";
+    await loginWithMagicLink(adminEmail);
+    await pool.query(`UPDATE users SET role = 'admin' WHERE email = $1`, [adminEmail]);
+    const adminAuth = await loginWithMagicLink(adminEmail);
+
+    const targetAuth = await loginWithMagicLink(uniqueEmail("duplicate-signal"));
+
+    const firstWarning = await request(app)
+      .post("/api/moderation/actions")
+      .set("Authorization", `Bearer ${adminAuth.token}`)
+      .send({
+        targetUserId: targetAuth.user.id,
+        actionType: "warn",
+        reasonType: "policy_violation",
+        note: "duplicate-signal-note",
+      });
+    expect(firstWarning.status).toBe(201);
+
+    const secondWarning = await request(app)
+      .post("/api/moderation/actions")
+      .set("Authorization", `Bearer ${adminAuth.token}`)
+      .send({
+        targetUserId: targetAuth.user.id,
+        actionType: "warn",
+        reasonType: "policy_violation",
+        note: "duplicate-signal-note",
+      });
+    expect(secondWarning.status).toBe(201);
+
+    const signalsResponse = await request(app)
+      .get(`/api/karma/signals?userId=${targetAuth.user.id}`)
+      .set("Authorization", `Bearer ${adminAuth.token}`);
+    expect(signalsResponse.status).toBe(200);
+    expect(
+      signalsResponse.body.signals.some(
+        (signal: { signalType: string }) => signal.signalType === "duplicate_event",
+      ),
+    ).toBe(true);
+  });
+
+  it("records admin audit logs for privileged actions", async () => {
+    const adminEmail = "admin@example.com";
+    await loginWithMagicLink(adminEmail);
+    await pool.query(`UPDATE users SET role = 'admin' WHERE email = $1`, [adminEmail]);
+    const adminAuth = await loginWithMagicLink(adminEmail);
+    const targetAuth = await loginWithMagicLink(uniqueEmail("audit-target"));
+
+    const updateUserResponse = await request(app)
+      .patch(`/api/users/${targetAuth.user.id}`)
+      .set("Authorization", `Bearer ${adminAuth.token}`)
+      .send({
+        role: "mod",
+      });
+    expect(updateUserResponse.status).toBe(200);
+
+    const configResponse = await request(app)
+      .get("/api/karma/config")
+      .set("Authorization", `Bearer ${adminAuth.token}`);
+    expect(configResponse.status).toBe(200);
+
+    const updateConfigResponse = await request(app)
+      .put("/api/karma/config")
+      .set("Authorization", `Bearer ${adminAuth.token}`)
+      .send(configResponse.body.config);
+    expect(updateConfigResponse.status).toBe(204);
+
+    const logsResponse = await request(app)
+      .get("/api/admin/logs")
+      .set("Authorization", `Bearer ${adminAuth.token}`);
+    expect(logsResponse.status).toBe(200);
+    expect(
+      logsResponse.body.logs.some(
+        (log: { actionType: string }) => log.actionType === "user_updated",
+      ),
+    ).toBe(true);
+    expect(
+      logsResponse.body.logs.some(
+        (log: { actionType: string }) => log.actionType === "karma_config_updated",
+      ),
+    ).toBe(true);
+  });
+
+  it("enforces one-time magic link use", async () => {
+    const email = uniqueEmail("magic-once");
+    const magicToken = await requestMagicLinkToken(email);
+
+    const firstVerifyResponse = await request(app)
+      .post("/api/auth/magic-link/verify")
+      .send({ token: magicToken });
+    expect(firstVerifyResponse.status).toBe(200);
+
+    const secondVerifyResponse = await request(app)
+      .post("/api/auth/magic-link/verify")
+      .send({ token: magicToken });
+    expect(secondVerifyResponse.status).toBe(400);
+    expect(secondVerifyResponse.body.error).toBe("Magic link already used");
+  });
+
+  it("blocks non-admin moderators from ban action", async () => {
+    const adminEmail = "admin@example.com";
+    await loginWithMagicLink(adminEmail);
+    await pool.query(`UPDATE users SET role = 'admin' WHERE email = $1`, [adminEmail]);
+    const adminAuth = await loginWithMagicLink(adminEmail);
+
+    const moderatorAuth = await loginWithMagicLink(uniqueEmail("mod"));
+    await pool.query("UPDATE users SET role = 'mod' WHERE id = $1", [moderatorAuth.user.id]);
+    const moderatorSession = await loginWithMagicLink(moderatorAuth.user.email);
+
+    const targetAuth = await loginWithMagicLink(uniqueEmail("ban-target"));
+    expect(adminAuth.user.role).toBe("admin");
+
+    const banResponse = await request(app)
+      .post("/api/moderation/actions")
+      .set("Authorization", `Bearer ${moderatorSession.token}`)
+      .send({
+        targetUserId: targetAuth.user.id,
+        actionType: "ban",
+        reasonType: "policy_violation",
+        note: "should be blocked",
+      });
+
+    expect(banResponse.status).toBe(403);
+    expect(banResponse.body.error).toBe("Only admins can ban users");
+  });
+
+  it("returns moderation queue items for revisions and comments", async () => {
+    const adminEmail = "admin@example.com";
+    await loginWithMagicLink(adminEmail);
+    await pool.query(`UPDATE users SET role = 'admin' WHERE email = $1`, [adminEmail]);
+    const adminAuth = await loginWithMagicLink(adminEmail);
+    const editorAuth = await loginWithMagicLink(uniqueEmail("queue-editor"));
+
+    const createArticleResponse = await request(app)
+      .post("/api/articles")
+      .set("Authorization", `Bearer ${editorAuth.token}`)
+      .send({
+        slug: "queue-article",
+        title: "Queue Article",
+        content: "queue body",
+        summary: "init",
+      });
+    expect(createArticleResponse.status).toBe(201);
+
+    const threadResponse = await request(app)
+      .post("/api/articles/queue-article/discussions")
+      .set("Authorization", `Bearer ${editorAuth.token}`)
+      .send({
+        title: "queue thread",
+      });
+    expect(threadResponse.status).toBe(201);
+
+    const commentResponse = await request(app)
+      .post(`/api/discussions/${threadResponse.body.thread.id}/comments`)
+      .set("Authorization", `Bearer ${editorAuth.token}`)
+      .send({
+        content: "queue comment content",
+      });
+    expect(commentResponse.status).toBe(201);
+
+    const queueResponse = await request(app)
+      .get("/api/moderation/queue")
+      .set("Authorization", `Bearer ${adminAuth.token}`);
+    expect(queueResponse.status).toBe(200);
+    expect(
+      queueResponse.body.items.some(
+        (item: { itemType: string; articleSlug: string }) =>
+          item.itemType === "revision" && item.articleSlug === "queue-article",
+      ),
+    ).toBe(true);
+    expect(
+      queueResponse.body.items.some(
+        (item: { itemType: string; articleSlug: string }) =>
+          item.itemType === "comment" && item.articleSlug === "queue-article",
+      ),
+    ).toBe(true);
+  });
+
+  it("rejects anonymous write operations while allowing reads", async () => {
+    const readResponse = await request(app).get("/api/articles");
+    expect(readResponse.status).toBe(200);
+
+    const writeResponse = await request(app).post("/api/articles").send({
+      slug: "anon-blocked",
+      title: "Anon Blocked",
+      content: "should fail",
+      summary: "n/a",
+    });
+    expect(writeResponse.status).toBe(401);
+  });
+
+  it("enforces admin-only access for admin audit logs", async () => {
+    const adminEmail = "admin@example.com";
+    await loginWithMagicLink(adminEmail);
+    await pool.query(`UPDATE users SET role = 'admin' WHERE email = $1`, [adminEmail]);
+    const adminAuth = await loginWithMagicLink(adminEmail);
+    const moderatorAuth = await loginWithMagicLink(uniqueEmail("mod-audit"));
+    await pool.query("UPDATE users SET role = 'mod' WHERE id = $1", [moderatorAuth.user.id]);
+    const moderatorSession = await loginWithMagicLink(moderatorAuth.user.email);
+
+    const adminLogsResponse = await request(app)
+      .get("/api/admin/logs")
+      .set("Authorization", `Bearer ${adminAuth.token}`);
+    expect(adminLogsResponse.status).toBe(200);
+
+    const moderatorLogsResponse = await request(app)
+      .get("/api/admin/logs")
+      .set("Authorization", `Bearer ${moderatorSession.token}`);
+    expect(moderatorLogsResponse.status).toBe(403);
+  });
+});

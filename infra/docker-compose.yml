@@ -1,0 +1,40 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: wiki_clone
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  api:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.api
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/wiki_clone
+      PORT: 4000
+      JWT_SECRET: local-dev-secret
+      APP_ORIGIN: http://localhost:4173
+      ADMIN_EMAIL: admin@example.com
+    depends_on:
+      - postgres
+    ports:
+      - "4000:4000"
+
+  web:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.web
+    environment:
+      VITE_API_BASE_URL: http://localhost:4000/api
+    depends_on:
+      - api
+    ports:
+      - "4173:4173"
+
+volumes:
+  postgres_data:

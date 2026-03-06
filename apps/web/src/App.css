@@ -1,0 +1,92 @@
+.layout {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 24px;
+  display: grid;
+  gap: 20px;
+}
+
+.panel {
+  border: 1px solid #d0d7de;
+  border-radius: 10px;
+  padding: 16px;
+  background: #fff;
+}
+
+.row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.stack {
+  display: grid;
+  gap: 8px;
+}
+
+input,
+select,
+textarea {
+  padding: 8px;
+  border: 1px solid #9aa4b2;
+  border-radius: 6px;
+  min-width: 220px;
+}
+
+textarea {
+  width: 100%;
+}
+
+button {
+  padding: 8px 12px;
+  border: 1px solid #2f6feb;
+  background: #2f6feb;
+  color: #fff;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+button:hover {
+  opacity: 0.92;
+}
+
+ul {
+  margin: 8px 0;
+  padding-left: 20px;
+  display: grid;
+  gap: 8px;
+}
+
+.status {
+  margin-top: -10px;
+  color: #57606a;
+}
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    "Courier New", monospace;
+}
+
+.diff-container {
+  margin-top: 8px;
+  border: 1px solid #d0d7de;
+  border-radius: 8px;
+  padding: 8px;
+  background: #f6f8fa;
+  max-height: 300px;
+  overflow: auto;
+}
+
+.diff-line {
+  white-space: pre-wrap;
+  padding: 2px 4px;
+}
+
+.diff-added {
+  background: #dafbe1;
+}
+
+.diff-removed {
+  background: #ffebe9;
+}
